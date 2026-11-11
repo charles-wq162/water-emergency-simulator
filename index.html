@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="90가지 절수 대응 조합을 비교하는 공동생활시설 비상 단수 대응 시뮬레이터">
+  <title>공동생활시설 비상 단수 대응 시뮬레이터</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="index.html"><span class="brand-icon">≈</span> WATERKEEP <span class="brand-sub">시설 운영 콘솔</span></a><span class="offline"><i></i> 로컬 시뮬레이션 · MVP</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">EMERGENCY WATER MANAGEMENT</p><h1>공동생활시설 비상 단수 대응 시뮬레이터</h1><p class="subtitle">남은 물을 확인하고, 일상에 가장 적은 제한으로 목표 시간을 확보하세요.</p></div><button id="reset" class="button-secondary" type="button">기본값으로 초기화 ↺</button></div>
+    <nav class="flow-guide" aria-label="분석 흐름"><a href="#input-title">01 건물정보</a><b>→</b><a href="#diagnosis-title">02 데이터 진단</a><b>→</b><a href="#status-title">03 유지시간 분석</a><b>→</b><a href="#recommendation-title">04 대응안 추천</a></nav>
+    <div class="dashboard">
+      <section class="card input-panel" aria-labelledby="input-title">
+        <div class="section-heading"><span class="step">01</span><h2 id="input-title">건물 및 저수조 정보</h2></div>
+        <p class="section-description">건물을 선택하고 현재 수위를 조정하세요.</p>
+        <label for="sample-building">분석할 건물 <span class="muted">· 샘플</span></label>
+        <select id="sample-building"><option value="a">A기숙사</option><option value="b">B아파트</option><option value="c">C학교</option></select>
+        <dl id="building-facts" class="building-facts" aria-live="polite"></dl>
+        <div class="capacity-panel">
+          <div class="capacity-heading"><span>저수조 전체 용량</span><span id="capacity-badge" class="badge"></span></div>
+          <strong id="tank-capacity" class="capacity-value">—</strong>
+          <div class="slider-heading water-level-heading"><label for="remaining-percent">현재 수위</label><output id="level-value" for="remaining-percent">60%</output></div>
+          <input id="remaining-percent" type="range" min="0" max="100" step="1" value="60">
+          <div class="range-labels"><span>0% · 비어 있음</span><span>100% · 가득 참</span></div>
+          <div class="effective-storage" aria-live="polite"><span>현재 남은 물 · 유효 저수량</span><output id="effective-storage" for="sample-building remaining-percent">—</output><p id="storage-formula"></p></div>
+        </div>
+        <details class="building-notes"><summary>샘플 정보 및 추정 기준</summary><p id="capacity-formula" class="small muted"></p><p class="small muted">가상 건물 데이터입니다. ‘실제값’은 샘플 내 자료 보유 상태를 뜻합니다. 초기 수위 60%는 가정이며 현장에 맞게 조정하세요.</p><p class="small muted">연면적은 현황 표시용이며 모든 건물에 동일한 가상 사용 비율을 적용합니다.</p></details>
+      </section>
+
+      <section class="card diagnosis-panel" aria-labelledby="diagnosis-title">
+        <div class="section-heading"><span class="step">02</span><h2 id="diagnosis-title">데이터 신뢰도 진단</h2><span class="badge blue">규칙 기반</span></div>
+        <p class="section-description">동일한 관측 구간의 물 감소량과 계량기 사용량을 비교합니다.</p>
+        <p class="diagnosis-assumption">관측 중 추가 급수·보충은 없고, 계량기는 저수조에서 공급한 사용량을 측정한다고 가정합니다. 현재 수위는 1단계 값을 사용합니다.</p>
+        <form id="diagnosis-form" class="diagnosis-inputs">
+          <div><label for="observation-hours">관측 시간</label><div class="input-unit"><input id="observation-hours" type="number" value="1.6" min="0.01" max="8760" step="any" required><span>시간</span></div></div>
+          <div><label for="previous-level">관측 시작 수위</label><div class="input-unit"><input id="previous-level" type="number" value="65" min="0" max="100" step="any" required><span>%</span></div></div>
+          <div><label for="meter-volume">관측 구간 계량기 사용량</label><div class="input-unit"><input id="meter-volume" type="number" value="1000" min="0" max="1000000000000" step="any" required><span>L</span></div></div>
+          <div><label for="recent-average">최근 평균 사용량</label><div class="input-unit"><input id="recent-average" type="number" value="15000" min="0.01" max="1000000000000" step="any" required><span>L/day</span></div></div>
+        </form>
+        <p class="small muted">초기 관측값은 테스트용입니다. 건물을 바꾸면 기존 관측값이 유지되므로 해당 건물의 값으로 수정하세요. 최근 평균은 진단 비교용이며 3단계 계산용 사용량과 독립적입니다.</p>
+        <div id="diagnosis-error" class="alert danger" role="alert" hidden></div>
+        <div id="diagnosis-result" aria-live="polite"></div>
+        <details class="diagnosis-rules"><summary>진단 기준과 계산 방식</summary>
+          <p>수위 감소량 = 전체 용량 × (시작 수위 − 현재 수위) ÷ 100<br>평균 예상량 = 최근 평균 사용량 × 관측 시간 ÷ 24</p>
+          <p>허용 차이는 50L와 평균 예상량의 20% 중 큰 값입니다. 수위 감소량과 계량기 사용량 차이가 허용치를 초과하면 ‘주의’, 동시에 두 값 중 큰 값의 50% 이상이면 ‘이상 가능성’입니다.</p>
+          <p>계량기 사용량이 평균 예상량의 1.5배를 초과하면 ‘주의’, 2배를 초과하면 ‘비정상 사용량 감지’로 ‘이상 가능성’입니다. 수위 상승은 무급수 가정과 맞지 않아 ‘주의’입니다. 여러 조건이 겹치면 가장 높은 등급을 표시합니다.</p>
+          <p>기준은 시제품용 임시 규칙이며 AI 모델이나 고장 확정 진단이 아닙니다. ‘정상’은 입력값 사이의 모순이 규칙상 발견되지 않았다는 뜻입니다. 추정 용량으로 계산한 진단은 실제 용량 확인이 필요합니다.</p>
+        </details>
+      </section>
+
+      <section class="card status-panel" aria-labelledby="status-title">
+        <div class="section-heading"><span class="step">03</span><h2 id="status-title">단수 유지시간 분석</h2><span id="status-badge" class="badge">분석 중</span></div>
+        <form id="situation-form" class="analysis-settings">
+          <h3>분석 조건</h3><p class="small muted">입력한 하루 평균 사용량으로 유지시간과 절수안을 계산합니다.</p>
+          <label for="daily">하루 평균 물 사용량</label><div class="input-unit"><input id="daily" type="number" value="15000" min="0.01" max="1000000000000" step="any" required><span>L/day</span></div>
+          <label for="target">목표 유지시간</label><div class="input-unit"><input id="target" type="number" value="24" min="0.01" max="1000000" step="any" required><span>시간</span></div>
+          <div id="input-error" class="alert danger" role="alert" hidden></div>
+        </form>
+        <p class="small muted">하루 사용량은 시설 전체 기준입니다. 건물을 바꿔도 분석 조건은 유지됩니다.</p>
+        <div class="per-person"><span>1인당 하루 사용량</span><strong id="per-person">—</strong></div>
+        <p id="analysis-diagnosis-note" class="alert warning" hidden></p>
+        <div id="current-results" aria-live="polite">
+          <div class="tank-scene"><div class="tank-side"><span>목표시간 필요량</span><strong id="required-volume">—</strong><span id="coverage-percent">—</span></div><div class="tank" role="img" id="tank"><div class="tank-lines"></div><div class="water" id="water"></div><div class="tank-label"><span>현재 유효 저수량</span><strong id="tank-volume">—</strong><span id="tank-percent">—</span></div></div></div>
+          <p class="tank-caption">물탱크는 선택한 건물의 현재 수위를 표시합니다.<br>현재 남은 물 = 저수조 전체 용량 × 현재 수위</p>
+          <div class="time-main"><span>현재 유지 가능 시간</span><div><strong id="current-hours">—</strong><span>시간</span></div><p>현재 시간당 사용량 <b id="hourly">—</b></p></div>
+          <div class="metrics"><div><span>목표 유지시간</span><strong id="target-hours">—</strong></div><div><span id="gap-label">부족 시간</span><strong id="gap-hours">—</strong></div></div>
+          <div id="current-alert" class="alert"></div>
+        </div>
+        <div class="usage-section"><h3>용도별 하루 물 사용량</h3><div id="usage-list"></div></div>
+      </section>
+
+      <section class="card recommendation-panel" aria-labelledby="recommendation-title">
+        <div class="section-heading"><span class="step">04</span><h2 id="recommendation-title">절수 대응안 자동추천</h2><span class="badge blue">자동 비교</span></div>
+        <p id="recommendation-diagnosis-note" class="alert warning" hidden></p>
+        <div class="comparison-counts"><div><span>전체 대응 조합</span><strong id="total-count">—</strong><small>개</small></div><div><span>목표 충족 조합</span><strong id="feasible-count">—</strong><small>개</small></div></div>
+        <div id="recommendation" aria-live="polite"></div>
+        <p class="ranking-note">선정 기준: 생활 제한 점수 최소 → 목표 초과시간 최소</p>
+        <details class="manual" open><summary>수동 시나리오 조정 <span>직접 비교해 보기</span></summary>
+          <div class="manual-body"><button id="apply-recommendation" class="button-secondary compact" type="button">추천안을 수동 설정에 가져오기</button>
+            <div class="slider-heading"><label for="shower">샤워 감축률</label><output id="shower-value" for="shower">0%</output></div><input id="shower" type="range" min="0" max="40" step="10" value="0"><div class="range-labels"><span>정상 유지</span><span>40% 감축</span></div>
+            <div class="manual-grid"><div><label for="laundry">세탁</label><select id="laundry"><option value="0">정상 유지</option><option value="50">50% 감축</option><option value="100">100% 감축</option></select></div><div><label for="cleaning">청소</label><select id="cleaning"><option value="0">정상 유지</option><option value="50">50% 감축</option><option value="100">100% 감축</option></select></div></div>
+            <label class="toggle-row" for="landscaping"><span>조경 물 사용 <small id="landscaping-label">ON · 정상 유지</small></span><input type="checkbox" id="landscaping" role="switch" checked></label>
+            <div id="manual-result" class="manual-result" aria-live="polite"></div>
+          </div>
+        </details>
+      </section>
+    </div>
+    <details class="card all-combinations"><summary>전체 대응 조합 비교 <span>90개 시나리오 상세 보기</span></summary><p class="small muted">생활 제한 점수, 목표시간과의 거리 순으로 표시합니다. 충족 여부는 반올림 전 값으로 판정합니다.</p><div class="table-scroll"><table><caption class="sr-only">전체 절수 대응 조합의 평가 결과</caption><thead><tr><th scope="col">샤워 감축</th><th scope="col">세탁 감축</th><th scope="col">청소 감축</th><th scope="col">조경 감축</th><th scope="col">사용량 L/day</th><th scope="col">절감량 L/day</th><th scope="col">유지시간</th><th scope="col">제한 점수</th><th scope="col">목표 충족</th></tr></thead><tbody id="combination-rows"></tbody></table></div></details>
+    <footer><strong>시제품 계산 기준 안내</strong><p>현재 추정식은 시제품용이며 실제 법령 및 건물자료 기준으로 추후 보완 예정</p><p>용도별 비율(화장실 33%, 샤워 27%, 세탁 17%, 청소 10%, 조경 13%)은 실제 공식 기준이 아닌 시제품 테스트용 가상 비율입니다.</p><p>생활 제한 점수도 MVP 테스트용 임시 기준입니다. 샤워 10%당 1점 · 세탁 50%/100% 감축 2/4점 · 청소 50%/100% 감축 1/2점 · 조경 중단 1점 · 화장실 0점.</p><p>사용량이 시간에 따라 일정하고 추가 급수가 없다고 가정합니다. 화장실 사용은 모든 시나리오에서 정상 유지합니다. 표시값은 반올림되며, 결과는 현장 대응 판단을 위한 참고용입니다.</p></footer>
+  </main>
+  <noscript>시뮬레이터를 사용하려면 브라우저의 JavaScript를 활성화하세요.</noscript>
+</body>
+</html>
