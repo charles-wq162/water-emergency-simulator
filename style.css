@@ -26,3 +26,16 @@
 .diagnosis-rules{margin-top:16px}.diagnosis-rules p{font-size:11px;color:var(--muted)}
 .status-panel .analysis-settings{margin-top:18px}.status-panel #input-error{margin-top:12px}
 @media(max-width:760px){.dashboard{grid-template-columns:1fr}.flow-guide{gap:6px}.flow-guide a{padding:6px;font-size:11px}.diagnosis-inputs{grid-template-columns:1fr}}
+
+/* 지도 선택 → 공개 건물정보 → 저수조 입력 */
+.map-section{margin-bottom:24px}.map-layout{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start}
+#campus-map{height:390px;background:#eaf1f4;border:1px solid var(--line);border-radius:12px;z-index:0}
+.building-preview{background:#f5fafb;border:1px solid var(--line);border-radius:12px;padding:20px;min-height:260px}
+.building-preview h3{font-size:23px;margin:14px 0 5px}.building-preview h3 small{font-size:12px;color:var(--muted)}
+#building-placeholder p{color:var(--muted);font-size:13px}.source-label{font-size:11px;color:var(--teal)}.source-links{font-size:11px;line-height:2}.source-links a{text-decoration:underline;color:var(--blue)}
+.continue-link{display:inline-block;margin-top:16px;padding:9px 13px;border:1px solid #acd6dd;border-radius:8px;color:#067687;background:#edf8f9;font-size:12px;font-weight:700}
+.surim-marker{background:var(--teal);color:white;border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px #19344740;display:grid;place-items:center;font-weight:800;font-size:16px}
+#reservoir-form fieldset{border:0;padding:0;margin:0;min-width:0}#reservoir-form label{margin-top:20px}#reservoir-form fieldset:disabled{opacity:.5}
+#demo-capacity-wrap p{margin-bottom:0}.input-panel .section-heading{flex-wrap:wrap}.building-facts dd{overflow-wrap:anywhere}
+@media(max-width:900px){.map-layout{grid-template-columns:1fr}#campus-map{height:330px}}
+@media(max-width:500px){#campus-map{height:280px}.map-section .section-heading{flex-wrap:wrap}.building-preview{padding:15px}}

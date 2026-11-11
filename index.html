@@ -5,43 +5,66 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="90가지 절수 대응 조합을 비교하는 공동생활시설 비상 단수 대응 시뮬레이터">
   <title>공동생활시설 비상 단수 대응 시뮬레이터</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
-  <script src="script.js" defer></script>
+  <script src="script.js?v=map-fix-2" defer></script>
 </head>
 <body>
-  <header class="topbar"><a class="brand" href="index.html"><span class="brand-icon">≈</span> WATERKEEP <span class="brand-sub">시설 운영 콘솔</span></a><span class="offline"><i></i> 로컬 시뮬레이션 · MVP</span></header>
+  <header class="topbar"><a class="brand" href="index.html"><span class="brand-icon">≈</span> WATERKEEP <span class="brand-sub">시설 운영 콘솔</span></a><span class="offline"><i></i> 수림학사 파일럿 · MVP</span></header>
   <main>
     <div class="page-heading"><div><p class="eyebrow">EMERGENCY WATER MANAGEMENT</p><h1>공동생활시설 비상 단수 대응 시뮬레이터</h1><p class="subtitle">건물의 남은 물을 확인하고, 최소한의 절수로 목표시간을 확보하세요.</p></div><button id="reset" class="button-secondary" type="button">기본값으로 초기화 ↺</button></div>
-    <nav class="flow-guide" aria-label="분석 흐름"><a href="#input-title">01 건물정보</a><b>→</b><a href="#diagnosis-title">02 데이터 진단</a><b>→</b><a href="#status-title">03 유지시간 분석</a><b>→</b><a href="#recommendation-title">04 대응안 추천</a></nav>
+    <nav class="flow-guide" aria-label="분석 흐름"><a href="#map-title">01 지도 선택</a><b>→</b><a href="#building-card">02 건물정보</a><b>→</b><a href="#input-title">03 저수조 상태</a><b>→</b><a href="#status-title">04 유지시간 분석</a><b>→</b><a href="#recommendation-title">05 대응안 추천</a></nav>
+    <section class="card map-section" aria-labelledby="map-title">
+      <div class="section-heading"><span class="step">01</span><h2 id="map-title">지도에서 수림학사 선택</h2><span class="badge blue">서울과학기술대학교</span></div>
+      <p class="section-description">캠퍼스 북쪽의 45번 수림학사 마커를 누르면 건물 정보를 확인할 수 있습니다.</p>
+      <div class="map-layout">
+        <div><div id="campus-map" aria-label="서울과학기술대학교 수림학사 선택 지도"></div><p id="map-status" class="small muted" role="status">지도를 불러오는 중입니다. 지도는 인터넷 연결이 필요합니다.</p><button id="select-surim" type="button" class="button-secondary">수림학사 선택 · 지도 없이도 선택 가능</button></div>
+        <aside id="building-card" class="building-preview" aria-live="polite">
+          <div id="building-placeholder"><span class="eyebrow">PILOT BUILDING</span><h3>분석할 건물을 선택하세요</h3><p>이번 파일럿은 수림학사 1개 건물을 대상으로 합니다. 지도 마커 또는 선택 버튼을 누르세요.</p></div>
+          <div id="building-details" hidden>
+            <span class="badge blue">02 건물정보 확인</span><h3>수림학사 <small>45번 건물</small></h3>
+            <p class="source-label">서울과학기술대학교 생활관 공개자료 기반</p>
+            <dl id="building-facts" class="building-facts"></dl>
+            <p class="small muted">주소 기준: 서울특별시 노원구 공릉로 232 서울과학기술대학교 내 수림학사</p>
+            <p class="small muted">수용인원 448명은 생활관 현황의 2인실 기준입니다. 시설안내에는 장애인실 3명이 별도 기재되어 있으며, 본 MVP 분석 인원은 요청 기준 448명을 사용합니다.</p>
+            <p class="source-links"><a href="https://housing.seoultech.ac.kr/facilities/surim" target="_blank" rel="noopener">공식 시설안내 ↗</a> · <a href="https://housing.seoultech.ac.kr/about/overview" target="_blank" rel="noopener">생활관 현황 ↗</a> · <a href="https://www.openstreetmap.org/way/579071106" target="_blank" rel="noopener">위치 출처: OSM ↗</a></p>
+            <a class="continue-link" href="#input-title">저수조 상태 입력으로 이동 ↓</a>
+          </div>
+        </aside>
+      </div>
+    </section>
     <div class="dashboard">
       <section class="card input-panel" aria-labelledby="input-title">
-        <div class="section-heading"><span class="step">01</span><h2 id="input-title">건물 및 저수조 정보</h2></div>
-        <p class="section-description">건물을 선택하고 현재 수위를 조정하세요.</p>
-        <label for="sample-building">분석할 건물 <span class="muted">· 샘플</span></label>
-        <select id="sample-building"><option value="a">A기숙사</option><option value="b">B아파트</option><option value="c">C학교</option></select>
-        <dl id="building-facts" class="building-facts" aria-live="polite"></dl>
-        <div class="capacity-panel">
-          <div class="capacity-heading"><span>저수조 전체 용량</span><span id="capacity-badge" class="badge"></span></div>
-          <strong id="tank-capacity" class="capacity-value">—</strong>
-          <div class="slider-heading water-level-heading"><label for="remaining-percent">현재 수위</label><output id="level-value" for="remaining-percent">60%</output></div>
-          <input id="remaining-percent" type="range" min="0" max="100" step="1" value="60">
-          <div class="range-labels"><span>0% · 비어 있음</span><span>100% · 가득 참</span></div>
-          <div class="effective-storage" aria-live="polite"><span>현재 남은 물 · 유효 저수량</span><output id="effective-storage" for="sample-building remaining-percent">—</output><p id="storage-formula"></p></div>
-        </div>
-        <details class="building-notes"><summary>샘플 정보 및 추정 기준</summary><p id="capacity-formula" class="small muted"></p><p class="small muted">가상 건물 데이터입니다. ‘실제값’은 샘플 내 자료 보유 상태를 뜻합니다. 초기 수위 60%는 가정이며 현장에 맞게 조정하세요.</p><p class="small muted">연면적은 현황 표시용이며 모든 건물에 동일한 가상 사용 비율을 적용합니다.</p></details>
+        <div class="section-heading"><span class="step">03</span><h2 id="input-title">저수조 상태 입력</h2><span id="capacity-badge" class="badge warning">공개자료 미확인</span></div>
+        <p id="selection-status" class="section-description">먼저 지도에서 수림학사를 선택하세요.</p>
+        <form id="reservoir-form">
+          <fieldset id="reservoir-fields" disabled>
+            <legend class="sr-only">수림학사 저수조 상태</legend>
+            <label for="capacity-mode">저수조 용량 설정 방식</label>
+            <select id="capacity-mode"><option value="manual">직접 입력</option><option value="demo">시제품 추정값 사용</option></select>
+            <div id="manual-capacity-wrap"><label for="capacity-input">저수조 전체 용량</label><div class="input-unit"><input id="capacity-input" type="number" min="0.01" max="1000000000000" step="any" placeholder="예: 50000" required><span>L</span></div></div>
+            <div id="demo-capacity-wrap" class="alert warning" hidden><strong>시제품 추정값: 50,000L</strong><p>실제 저수조 용량이 아니라 기능 시연을 위한 임시값입니다. 인원·면적·법령으로 산정한 값이 아닙니다.</p></div>
+            <p id="capacity-provenance" class="small muted">공개자료에서 실제 용량을 확인하지 못했습니다. 직접 입력값도 앱이 검증한 실제값으로 취급하지 않습니다.</p>
+            <label for="remaining-percent">현재 저수조 수위</label><div class="input-unit"><input id="remaining-percent" type="number" min="0" max="100" step="any" value="60" required><span>%</span></div>
+            <p class="small muted">초기 60%는 시연용 가정입니다. 실제 수위에 맞게 입력하세요.</p>
+          </fieldset>
+        </form>
+        <p id="reservoir-error" class="alert danger" role="alert" hidden></p>
+        <div class="effective-storage" aria-live="polite"><span>현재 남은 물 · 유효 저수량</span><output id="effective-storage" for="capacity-input capacity-mode remaining-percent">—</output><p id="storage-formula">용량 × 현재 수위 ÷ 100</p></div>
+        <a class="continue-link" href="#status-title">유지시간 및 대응안 확인 ↓</a>
       </section>
 
       <section class="card diagnosis-panel" aria-labelledby="diagnosis-title">
-        <div class="section-heading"><span class="step">02</span><h2 id="diagnosis-title">데이터 신뢰도 진단</h2><span class="badge blue">규칙 기반</span></div>
+        <div class="section-heading"><span class="step">보조</span><h2 id="diagnosis-title">데이터 신뢰도 진단</h2><span class="badge blue">규칙 기반</span></div>
         <p class="section-description">동일한 관측 구간의 물 감소량과 계량기 사용량을 비교합니다.</p>
-        <p class="diagnosis-assumption">관측 중 추가 급수·보충은 없고, 계량기는 저수조에서 공급한 사용량을 측정한다고 가정합니다. 현재 수위는 1단계 값을 사용합니다.</p>
+        <p class="diagnosis-assumption">관측 중 추가 급수·보충은 없고, 계량기는 저수조에서 공급한 사용량을 측정한다고 가정합니다. 현재 수위는 3단계 입력값을 사용합니다.</p>
         <form id="diagnosis-form" class="diagnosis-inputs">
           <div><label for="observation-hours">관측 시간</label><div class="input-unit"><input id="observation-hours" type="number" value="1.6" min="0.01" max="8760" step="any" required><span>시간</span></div></div>
           <div><label for="previous-level">관측 시작 수위</label><div class="input-unit"><input id="previous-level" type="number" value="65" min="0" max="100" step="any" required><span>%</span></div></div>
           <div><label for="meter-volume">관측 구간 계량기 사용량</label><div class="input-unit"><input id="meter-volume" type="number" value="1000" min="0" max="1000000000000" step="any" required><span>L</span></div></div>
           <div><label for="recent-average">최근 평균 사용량</label><div class="input-unit"><input id="recent-average" type="number" value="15000" min="0.01" max="1000000000000" step="any" required><span>L/day</span></div></div>
         </form>
-        <p class="small muted">초기 관측값은 테스트용입니다. 건물을 바꾸면 기존 관측값이 유지되므로 해당 건물의 값으로 수정하세요. 최근 평균은 진단 비교용이며 3단계 계산용 사용량과 독립적입니다.</p>
+        <p class="small muted">초기 관측값은 테스트용입니다. 수림학사에서 관측한 값으로 수정하세요. 최근 평균은 진단 비교용이며 4단계 계산용 사용량과 독립적입니다.</p>
         <div id="diagnosis-error" class="alert danger" role="alert" hidden></div>
         <div id="diagnosis-result" aria-live="polite"></div>
         <details class="diagnosis-rules"><summary>진단 기준과 계산 방식</summary>
@@ -53,16 +76,17 @@
       </section>
 
       <section class="card status-panel" aria-labelledby="status-title">
-        <div class="section-heading"><span class="step">03</span><h2 id="status-title">단수 유지시간 분석</h2><span id="status-badge" class="badge">분석 중</span></div>
+        <div class="section-heading"><span class="step">04</span><h2 id="status-title">단수 유지시간 분석</h2><span id="status-badge" class="badge">분석 중</span></div>
         <form id="situation-form" class="analysis-settings">
           <h3>분석 조건</h3><p class="small muted">입력한 하루 평균 사용량으로 유지시간과 절수안을 계산합니다.</p>
           <label for="daily">하루 평균 물 사용량</label><div class="input-unit"><input id="daily" type="number" value="15000" min="0.01" max="1000000000000" step="any" required><span>L/day</span></div>
           <label for="target">목표 유지시간</label><div class="input-unit"><input id="target" type="number" value="24" min="0.01" max="1000000" step="any" required><span>시간</span></div>
           <div id="input-error" class="alert danger" role="alert" hidden></div>
         </form>
-        <p class="small muted">하루 사용량은 시설 전체 기준입니다. 건물을 바꿔도 분석 조건은 유지됩니다.</p>
+        <p class="small muted">초기 사용량 15,000L/day는 기존 시연값입니다. 수림학사의 실제 측정값으로 확인된 수치가 아니므로 현장 사용량을 입력하세요.</p>
         <div class="per-person"><span>1인당 하루 사용량</span><strong id="per-person">—</strong></div>
         <p id="analysis-diagnosis-note" class="alert warning" hidden></p>
+        <p id="analysis-capacity-source" class="small warning-text"></p>
         <div id="current-results" aria-live="polite">
           <div class="tank-scene"><div class="tank-side"><span>목표시간 필요량</span><strong id="required-volume">—</strong><span id="coverage-percent">—</span></div><div class="tank" role="img" id="tank"><div class="tank-lines"></div><div class="water" id="water"></div><div class="tank-label"><span>현재 유효 저수량</span><strong id="tank-volume">—</strong><span id="tank-percent">—</span></div></div></div>
           <p class="tank-caption">물탱크는 선택한 건물의 현재 수위를 표시합니다.<br>현재 남은 물 = 저수조 전체 용량 × 현재 수위</p>
@@ -74,8 +98,9 @@
       </section>
 
       <section class="card recommendation-panel" aria-labelledby="recommendation-title">
-        <div class="section-heading"><span class="step">04</span><h2 id="recommendation-title">절수 대응안 자동추천</h2><span class="badge blue">자동 비교</span></div>
+        <div class="section-heading"><span class="step">05</span><h2 id="recommendation-title">절수 대응안 자동추천</h2><span class="badge blue">자동 비교</span></div>
         <p id="recommendation-diagnosis-note" class="alert warning" hidden></p>
+        <p id="recommendation-capacity-source" class="small warning-text"></p>
         <div class="comparison-counts"><div><span>전체 대응 조합</span><strong id="total-count">—</strong><small>개</small></div><div><span>목표 충족 조합</span><strong id="feasible-count">—</strong><small>개</small></div></div>
         <div id="recommendation" aria-live="polite"></div>
         <p class="ranking-note">선정 기준: 생활 제한 점수 최소 → 목표 초과시간 최소</p>

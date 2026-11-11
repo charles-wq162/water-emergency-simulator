@@ -14,39 +14,127 @@ const hours = (value) => number(value, 2);
 let currentInput = null;
 let currentRecommendation = null;
 
-// 샘플 자료만 사용합니다. ‘실제값’은 샘플 데이터에 용량이 있다는 뜻입니다.
-const SAMPLE_BUILDINGS = {
-  a: { name: "A기숙사", use: "기숙사", type: "기숙사", people: 200, area: 10000, capacity: 20000 },
-  b: { name: "B아파트", use: "공동주택", type: "아파트", households: 300, area: 25000 },
-  c: { name: "C학교", use: "학교", type: "학교", people: 500, area: 15000 }
-};
-// 용량·인원은 선택한 건물에서만 가져옵니다. 유효 저수량을 별도 입력값으로 저장하지 않습니다.
-function estimateTankCapacity(building) {
-  return building.households ? building.households * 2.5 * 100 : building.people * 40;
+// 공식 시설안내/생활관 현황의 공개 건물 정보입니다. 실제 저수조 용량은 미확인입니다.
+const SURIM = { name: "수림학사", number: 45, type: "기숙사", use: "생활관 / 기숙사",
+  people: 448, area: 8251, floors: "지하 1층 ~ 지상 7층", rooms: "2인실",
+  laundry: "1층 유료세탁실 · 세탁기 10대",
+  // OSM way 579071106 건물 윤곽의 중심 부근. 대학 대표 주소 좌표와 구분합니다.
+  coordinates: [37.63604, 127.07825] };
+const DEMO_CAPACITY = 50000;
+let buildingSelected = false;
+let campusMap = null;
+let surimMarker = null;
+
+function validNumberInput(id) {
+  const field = $(id);
+  const valid = field.value.trim() !== "" && Number.isFinite(field.valueAsNumber) && field.checkValidity();
+  field.setAttribute("aria-invalid", String(!valid));
+  return valid;
 }
 
 function getBuildingState() {
-  const building = SAMPLE_BUILDINGS[$("sample-building").value];
-  const capacity = building.capacity ?? estimateTankCapacity(building);
-  const level = Number($("remaining-percent").value);
-  return { ...building, capacity, level,
-    people: building.people ?? building.households * 2.5,
-    storage: capacity * level / 100 };
+  const isDemo = $("capacity-mode").value === "demo";
+  const capacityValid = isDemo || validNumberInput("capacity-input");
+  const levelValid = validNumberInput("remaining-percent");
+  const capacity = isDemo ? DEMO_CAPACITY : $("capacity-input").valueAsNumber;
+  const level = $("remaining-percent").valueAsNumber;
+  const valid = buildingSelected && capacityValid && levelValid;
+  return { ...SURIM, capacity, level, valid, isDemo, storage: valid ? capacity * level / 100 : null };
+}
+
+function selectSurim() {
+  buildingSelected = true;
+  $("building-details").hidden = false;
+  $("building-placeholder").hidden = true;
+  $("reservoir-fields").disabled = false;
+  $("select-surim").textContent = "✓ 수림학사 선택됨";
+  if (surimMarker) surimMarker.openPopup();
+  updateScreen();
 }
 
 function updateBuildingInfo() {
+  $("capacity-input").disabled = $("capacity-mode").value === "demo";
   const state = getBuildingState();
-  const hasActual = SAMPLE_BUILDINGS[$("sample-building").value].capacity !== undefined;
-  $("building-facts").innerHTML = `<div><dt>건물 용도</dt><dd>${state.use}</dd></div><div><dt>${state.households ? "세대수" : "이용 인원"}</dt><dd>${number(state.households || state.people)}${state.households ? "세대" : "명"}</dd></div><div><dt>연면적</dt><dd>${number(state.area)}㎡</dd></div><div><dt>저수조 자료</dt><dd>${hasActual ? "실제 자료 있음" : "자료 없음 · 추정"}</dd></div>`;
-  $("tank-capacity").textContent = `${number(state.capacity)} L`;
-  $("capacity-badge").textContent = hasActual ? "실제값" : "추정값";
-  $("capacity-badge").className = `badge ${hasActual ? "success" : "warning"}`;
-  $("level-value").textContent = `${state.level}%`;
-  $("effective-storage").textContent = `${number(state.storage)} L`;
-  $("storage-formula").textContent = `${number(state.capacity)} L × ${state.level}% = ${number(state.storage)} L`;
-  $("capacity-formula").textContent = hasActual ? "A기숙사: 샘플에 등록된 전체 용량 20,000L입니다." : state.households
-    ? "B아파트 임시 추정: 300세대 × 2.5명/세대 × 100L/명 = 75,000L. 1인당 사용량 표시는 750명 기준입니다."
-    : "C학교 임시 추정: 500명 × 40L/명 = 20,000L.";
+  $("manual-capacity-wrap").hidden = state.isDemo;
+  $("demo-capacity-wrap").hidden = !state.isDemo;
+  $("capacity-input").disabled = state.isDemo;
+  $("selection-status").textContent = buildingSelected ? "수림학사 · 45번 · 분석 인원 448명" : "먼저 지도에서 수림학사를 선택하세요.";
+  $("capacity-badge").textContent = "공개자료 미확인";
+  $("building-facts").innerHTML = [["건물 용도", SURIM.use], ["수용인원", "448명"], ["연면적", "8,251㎡"], ["규모", SURIM.floors], ["주요 주거형태", SURIM.rooms], ["세탁시설", SURIM.laundry], ["저수조 정보", "공개자료 미확인"]].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("");
+  $("effective-storage").textContent = state.valid ? `${number(state.storage)} L` : "—";
+  $("storage-formula").textContent = state.valid ? `${number(state.capacity)} L × ${number(state.level)}% = ${number(state.storage)} L` : "건물 선택 후 올바른 용량과 수위를 입력하세요.";
+  $("reservoir-error").hidden = !buildingSelected || state.valid;
+  $("reservoir-error").textContent = "전체 용량은 0.01~1,000,000,000,000L, 현재 수위는 0~100%로 입력하세요. 시제품 추정값 사용도 선택할 수 있습니다.";
+  const source = !buildingSelected ? "건물 선택 대기" : state.isDemo
+    ? "시연용 임시 용량 50,000L 기반 계산 · 실제 저수조 용량이 아닙니다."
+    : "사용자 직접 입력 용량 기반 계산 · 실제 용량 여부는 별도 확인이 필요합니다.";
+  $("analysis-capacity-source").textContent = source;
+  $("recommendation-capacity-source").textContent = source;
+}
+
+// 외부 지도 로딩에 실패해도 나머지 계산과 건물 선택 버튼은 작동합니다.
+function initializeMap() {
+  if (!window.L) {
+    $("map-status").textContent = "지도를 불러오지 못했습니다. 인터넷 연결을 확인하거나 아래 수림학사 선택 버튼을 사용하세요.";
+    return;
+  }
+  try {
+    campusMap = L.map("campus-map", { scrollWheelZoom: false }).setView([37.6339, 127.0784], 16);
+    // 공개·비영리·소규모 교육용 사용이 허용된 OSM France의 HOT 지도를 사용합니다.
+    // 정책: https://www.openstreetmap.fr/usage/ (출처 표시 유지, 대량 수집·사전 다운로드 없음)
+    // 차단된 서버에 우회 요청하거나 요청 출처를 위조하지 않습니다.
+    const tiles = L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", {
+      subdomains: "abc", minZoom: 1, maxZoom: 19, updateWhenIdle: true,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Tiles &copy; <a href="https://www.openstreetmap.fr/">OSM France</a>, style <a href="https://www.hotosm.org/">HOT</a>'
+    });
+    let loadedTiles = 0;
+    let failedTiles = 0;
+    let loadingCycle = 0;
+    const reportMapStatus = () => {
+      $("map-status").textContent = failedTiles > 0
+        ? "지도 배경 일부를 불러오지 못했습니다. 45번 마커 또는 아래 수림학사 선택 버튼으로 계속 진행할 수 있습니다."
+        : "지도 배경: OSM France · 45번 수림학사 마커를 클릭하세요. 위치는 OSM 건물 윤곽 기준이며 측량 좌표가 아닙니다.";
+    };
+    tiles.on("loading", () => {
+      loadedTiles = 0;
+      failedTiles = 0;
+      const cycle = ++loadingCycle;
+      $("map-status").textContent = "캠퍼스 지도 배경을 불러오는 중입니다. 수림학사 선택 버튼은 바로 사용할 수 있습니다.";
+      setTimeout(() => {
+        if (cycle === loadingCycle && loadedTiles === 0) {
+          $("map-status").textContent = "지도 연결이 지연되고 있습니다. 아래 수림학사 선택 버튼으로 분석을 진행할 수 있습니다.";
+        }
+      }, 10000);
+    });
+    tiles.on("tileload", () => { loadedTiles += 1; });
+    tiles.on("tileerror", (event) => {
+      failedTiles += 1;
+      // 깨진 이미지 대신 지도 바탕색을 보여주고 마커와 선택 버튼은 유지합니다.
+      if (event.tile) event.tile.style.visibility = "hidden";
+      reportMapStatus();
+    });
+    tiles.on("load", reportMapStatus);
+    tiles.addTo(campusMap);
+    const icon = L.divIcon({ className: "surim-marker", html: "<span>45</span>", iconSize: [42, 42], iconAnchor: [21, 42] });
+    surimMarker = L.marker(SURIM.coordinates, { icon, title: "수림학사 45번 건물 선택", alt: "수림학사 선택", keyboard: true }).addTo(campusMap)
+      .bindTooltip("수림학사 · 45", { permanent: true, direction: "top", offset: [0, -42] })
+      .bindPopup("<strong>수림학사 · 45번</strong><br>생활관 / 기숙사 · 448명<br>건물 정보 카드에서 저수조 입력으로 이어가세요.");
+    surimMarker.on("click", selectSurim);
+  } catch (error) {
+    $("map-status").textContent = "지도 초기화에 실패했습니다. 아래 수림학사 선택 버튼을 사용하세요.";
+  }
+}
+
+function loadMapLibrary() {
+  const library = document.createElement("script");
+  library.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  library.onload = initializeMap;
+  library.onerror = () => initializeMap();
+  document.head.appendChild(library);
+  // 네트워크가 응답 없이 지연될 때도 대체 선택 경로를 안내합니다.
+  setTimeout(() => {
+    if (!campusMap) $("map-status").textContent = "지도 연결이 지연되고 있습니다. 아래 수림학사 선택 버튼으로 먼저 진행할 수 있습니다.";
+  }, 10000);
 }
 
 // 진단은 기존 유지시간·추천 계산과 독립적입니다. 입력값을 임의로 보정하지 않습니다.
@@ -77,6 +165,13 @@ function diagnoseData({ capacity, level, previousLevel, observationHours, meterV
 }
 
 function updateDiagnosis() {
+  if (!getBuildingState().valid) {
+    $("diagnosis-error").hidden = true;
+    $("diagnosis-result").innerHTML = '<div class="diagnosis-summary warning"><strong>진단 대기</strong><p>수림학사를 선택하고 저수조 용량·수위를 입력하세요.</p></div>';
+    $("analysis-diagnosis-note").hidden = true;
+    $("recommendation-diagnosis-note").hidden = true;
+    return;
+  }
   const fields = ["observation-hours", "previous-level", "meter-volume", "recent-average"];
   const valid = fields.map((id) => {
     const field = $(id);
@@ -103,7 +198,7 @@ function updateDiagnosis() {
   for (const id of ["analysis-diagnosis-note", "recommendation-diagnosis-note"]) {
     $(id).hidden = severity === 0;
     $(id).textContent = valid
-      ? "데이터 진단에서 확인이 필요한 항목이 있습니다. 아래 결과는 입력한 저수량과 3단계 평균 사용량을 그대로 사용한 계산값입니다."
+      ? "데이터 진단에서 확인이 필요한 항목이 있습니다. 아래 결과는 입력한 저수량과 4단계 평균 사용량을 그대로 사용한 계산값입니다."
       : "데이터 진단이 완료되지 않았습니다. 아래 계산은 기존 분석 입력값을 기준으로 계속 표시됩니다.";
   }
 }
@@ -149,6 +244,7 @@ function selectOptimalPlan(evaluations) {
 
 function readInputs() {
   const state = getBuildingState();
+  if (!state.valid) { $("input-error").hidden = true; return null; }
   const fields = ["daily", "target"];
   const labels = { daily: "하루 평균 물 사용량", target: "목표 유지시간" };
   let invalid = null;
@@ -247,7 +343,7 @@ function updateScreen() {
     $("per-person").textContent = "—";
     $("total-count").textContent = "—";
     $("feasible-count").textContent = "—";
-    $("recommendation").textContent = "올바른 입력값을 입력하면 자동 추천이 표시됩니다.";
+    $("recommendation").textContent = "수림학사 선택 및 저수조·분석 조건 입력을 완료하면 자동 추천이 표시됩니다.";
     $("combination-rows").innerHTML = "";
     $("apply-recommendation").disabled = true;
   } else {
@@ -259,14 +355,15 @@ function updateScreen() {
   updateManualScenario();
 }
 
+$("reservoir-form").addEventListener("submit", (event) => event.preventDefault());
+$("select-surim").addEventListener("click", selectSurim);
 $("situation-form").addEventListener("submit", (event) => event.preventDefault());
 $("diagnosis-form").addEventListener("submit", (event) => event.preventDefault());
 // 모든 입력은 같은 갱신 경로를 사용하고, 선택한 건물에서 저수량을 매번 산정합니다.
 for (const eventName of ["input", "change"]) {
   $("situation-form").addEventListener(eventName, updateScreen);
   $("diagnosis-form").addEventListener(eventName, updateDiagnosis);
-  $("sample-building").addEventListener(eventName, updateScreen);
-  $("remaining-percent").addEventListener(eventName, updateScreen);
+  $("reservoir-form").addEventListener(eventName, updateScreen);
 }
 for (const id of ["shower", "laundry", "cleaning", "landscaping"]) {
   $(id).addEventListener("input", updateManualScenario);
@@ -283,8 +380,14 @@ $("reset").addEventListener("click", () => {
   $("diagnosis-form").reset();
   for (const key of ["shower", "laundry", "cleaning"]) $(key).value = "0";
   $("landscaping").checked = true;
-  $("sample-building").value = "a";
-  $("remaining-percent").value = "60";
+  $("reservoir-form").reset();
+  buildingSelected = false;
+  $("reservoir-fields").disabled = true;
+  $("building-details").hidden = true;
+  $("building-placeholder").hidden = false;
+  $("select-surim").textContent = "수림학사 선택 · 지도 없이도 선택 가능";
+  if (surimMarker) surimMarker.closePopup();
   updateScreen();
 });
 updateScreen();
+loadMapLibrary();
